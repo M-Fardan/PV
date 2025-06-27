@@ -12,7 +12,11 @@ import java.util.HashMap;
 import javax.swing.table.DefaultTableModel;
 import koneksi.koneksi;
 import userid.userid;
-
+import java.util.HashMap;
+import javax.swing.JOptionPane;
+import net.sf.jasperreports.engine.JasperFillManager;
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.view.JasperViewer;
 /**
  *
  * @author frdn1120
@@ -21,35 +25,38 @@ public class nota extends javax.swing.JFrame {
     public String id;
     public String nama;
     public String almt;
-        public String kdbrg;
-public String nmbrg;
-public String harga_beli;
-public String harga_jual;
+    public String kdbrg;
+    public String nmbrg;
+    public String harga_beli;
+    public String harga_jual;
     public String jenisbrg;
     public String hb;
-            public String hj;
+    public String hj;
     private Connection conn = new koneksi().connect();
-    DefaultTableModel tabmode;
+    private DefaultTableModel tabmode;
+    
+    private boolean isNewTransaction = true;
     
 
     /**
      * Creates new form nota
      */
     public nota() {
-        initComponents();
-        initTable();
-        Object[] Baris = {"idTransaksi", "Kode Barang", "Harga Beli", "Harga Jual", "Kuantitas", "Total"};
-tabmode = new DefaultTableModel(null, Baris);
-table_t.setModel(tabmode);
-        awal();
+       initComponents();
         
-        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        // --- BLOK INISIALISASI ---
+        awal(); // Siapkan tabel
         String id = userid.getIdKasir();
         jLabel4.setText(id);
         kosong();
         aktif();
         autonumber();
         nama();
+        
+        // >>> INI PERBAIKANNYA: Panggil data saat form pertama kali dibuka <<<
+        tampilData(); 
+        
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
     }
 
     private void initTable() {
@@ -63,47 +70,41 @@ table_t.setModel(tabmode);
 }
  
     public void awal() {
-    tabmode = new DefaultTableModel(null, new String[] {
-        "idTransaksi", "Kode", "Harga Beli", "Harga Jual", "Qty", "Subtotal"
-    });
-    table_t.setModel(tabmode);
-    tampilData(); // tampilkan isi database setelah model di-set
+    Object[] Baris = {"ID Transaksi", "Kode Barang", "Harga Beli", "Harga Jual", "Kuantitas", "Total"};
+        tabmode = new DefaultTableModel(null, Baris);
+        table_t.setModel(tabmode);
+     tampilData();
 }
     private void tampilData() {
-    tabmode.setRowCount(0); // Hapus semua baris lama
-
-    try {
-        String sql = "SELECT * FROM transaksi_detail";
-        Statement stat = conn.createStatement();
-        ResultSet rs = stat.executeQuery(sql);
-
-        while (rs.next()) {
-            String idTrans = rs.getString("id_transaksi");
-            String idBarang = rs.getString("kode_barang");
-            String hargaBeli = rs.getString("harga_beli");
-            String hargaJual = rs.getString("harga_jual");
-            String qty = rs.getString("qty");
-            String subtotal = rs.getString("total");
-
-            tabmode.addRow(new Object[]{
-                idTrans, idBarang, hargaBeli, hargaJual, qty, subtotal
-            });
+    tabmode.setRowCount(0); // Selalu kosongkan tabel sebelum menampilkan data baru
+        try {
+            String sql = "SELECT * FROM transaksi_detail ORDER BY id_transaksi";
+            Statement stat = conn.createStatement();
+            ResultSet rs = stat.executeQuery(sql);
+            while (rs.next()) {
+                String idTrans = rs.getString("id_transaksi");
+                String idBarang = rs.getString("kode_barang");
+                String hargaBeli = rs.getString("harga_beli");
+                String hargaJual = rs.getString("harga_jual");
+                String qtyValue = rs.getString("qty");
+                String subtotal = rs.getString("total");
+                tabmode.addRow(new Object[]{idTrans, idBarang, hargaBeli, hargaJual, qtyValue, subtotal});
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Gagal menampilkan data dari database: " + e.getMessage());
         }
-    } catch (SQLException e) {
-        JOptionPane.showMessageDialog(null, "Gagal menampilkan data: " + e.getMessage());
-    }
 }
     
     protected void nama() {
         try {
-            String sql = "SELECT * FROM data_kasir Where id_kasir ='" + jLabel4.getText() + "'";
+            String sql = "SELECT nama_kasir FROM data_kasir WHERE id_kasir = '" + jLabel4.getText() + "'";
             Statement stat = conn.createStatement();
             ResultSet hasil = stat.executeQuery(sql);
             if (hasil.next()) {
                 jLabel6.setText(hasil.getString("nama_kasir"));
             }
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "data gagal dipanggil" + e);
+            JOptionPane.showMessageDialog(null, "Gagal mengambil nama kasir: " + e);
         }
     }
     
@@ -125,27 +126,22 @@ table_t.setModel(tabmode);
     
     protected void autonumber() {
         try {
-            String sql = "SELECT id_transaksi from transaksi order by id_transaksi asc";
+            String sql = "SELECT id_transaksi FROM transaksi ORDER BY id_transaksi DESC LIMIT 1";
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(sql);
-            txtNota.setText("IN0001");
-            while (rs.next()) {
+            if (rs.next()) {
                 String idnota = rs.getString("id_transaksi").substring(2);
                 int AN = Integer.parseInt(idnota) + 1;
                 String Nol = "";
-                if (AN < 10) {
-                    Nol = "000";
-                } else if (AN < 100) {
-                    Nol = "00";
-                } else if (AN < 1000) {
-                    Nol = "0";
-                } else if (AN < 10000) {
-                    Nol = "";
-                }
+                if (AN < 10) Nol = "000";
+                else if (AN < 100) Nol = "00";
+                else if (AN < 1000) Nol = "0";
                 txtNota.setText("IN" + Nol + AN);
+            } else {
+                txtNota.setText("IN0001");
             }
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "Auto Number Gagagl" + e);
+            JOptionPane.showMessageDialog(null, "Auto Number Gagal: " + e);
         }
     }
     
@@ -244,6 +240,7 @@ table_t.setModel(tabmode);
         keluar_n = new javax.swing.JButton();
         jLabel17 = new javax.swing.JLabel();
         totalan = new javax.swing.JTextField();
+        cetak = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -529,6 +526,13 @@ table_t.setModel(tabmode);
         jLabel17.setFont(new java.awt.Font("Tahoma", 0, 18)); // NOI18N
         jLabel17.setText("Totalan :");
 
+        cetak.setText("cetak");
+        cetak.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                cetakActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -546,6 +550,8 @@ table_t.setModel(tabmode);
                         .addComponent(batal_n)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(keluar_n)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(cetak)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addComponent(jLabel17)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
@@ -604,7 +610,8 @@ table_t.setModel(tabmode);
                     .addComponent(batal_n)
                     .addComponent(keluar_n)
                     .addComponent(jLabel17)
-                    .addComponent(totalan, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(totalan, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(cetak))
                 .addContainerGap(25, Short.MAX_VALUE))
         );
 
@@ -645,8 +652,7 @@ try {
         String qtyStr = qty.getText().trim();
         String subtotalStr = total_b.getText().trim();
 
-        // Validasi dulu biar tidak error
-        if (kode.isEmpty() || nama.isEmpty() || hargabStr.isEmpty() || 
+        if (kode.isEmpty() || hargabStr.isEmpty() || 
             hargajStr.isEmpty() || qtyStr.isEmpty() || subtotalStr.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Semua field harus diisi!");
             return;
@@ -658,8 +664,10 @@ try {
         int subtotal = Integer.parseInt(subtotalStr);
 
         tabmode.addRow(new Object[] {
-    idTransaksi, kode, hargab, hargaj, qtyVal, subtotal
-});
+            idTransaksi, kode, hargab, hargaj, qtyVal, subtotal
+        });
+        
+        hitung(); // <--- TAMBAHKAN BARIS INI
 
         System.out.println("Tambah ke tabel sukses. Total baris: " + tabmode.getRowCount());
 
@@ -688,10 +696,69 @@ pop_up_data_barang pb = new pop_up_data_barang();
     }//GEN-LAST:event_cari_bActionPerformed
 
     private void hps_nActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_hps_nActionPerformed
-int index = table_t.getSelectedRow();
-        tabmode.removeRow(index);
-        table_t.setModel(tabmode);
-        hitung();        // TODO add your handling code here:
+System.out.println("--- Tombol Hapus Ditekan ---"); // DETEKTIF 1
+
+    int selectedRow = table_t.getSelectedRow();
+    if (selectedRow == -1) {
+        JOptionPane.showMessageDialog(this, "Pilih data yang ingin dihapus dari tabel.", "Peringatan", JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+
+    String idYangAkanDihapus = table_t.getValueAt(selectedRow, 0).toString();
+    System.out.println("ID yang akan dihapus: '" + idYangAkanDihapus + "'"); // DETEKTIF 2
+
+    int konfirmasi = JOptionPane.showConfirmDialog(this, 
+        "Anda yakin ingin menghapus transaksi '" + idYangAkanDihapus + "'?", "Konfirmasi Hapus", JOptionPane.YES_NO_OPTION);
+
+    if (konfirmasi == JOptionPane.YES_OPTION) {
+        System.out.println("Pengguna mengonfirmasi penghapusan."); // DETEKTIF 3
+        String sqlDetail = "DELETE FROM transaksi_detail WHERE id_transaksi = ?";
+        String sqlHeader = "DELETE FROM transaksi WHERE id_transaksi = ?";
+
+        try {
+            System.out.println("Memulai blok TRY..."); // DETEKTIF 4
+            conn.setAutoCommit(false);
+
+            // Hapus dari tabel anak
+            PreparedStatement stDetail = conn.prepareStatement(sqlDetail);
+            stDetail.setString(1, idYangAkanDihapus);
+            int rowsDeletedDetail = stDetail.executeUpdate();
+            System.out.println("Baris terhapus dari transaksi_detail: " + rowsDeletedDetail); // DETEKTIF 5
+
+            // Hapus dari tabel induk
+            PreparedStatement stHeader = conn.prepareStatement(sqlHeader);
+            stHeader.setString(1, idYangAkanDihapus);
+            int rowsDeletedHeader = stHeader.executeUpdate();
+            System.out.println("Baris terhapus dari transaksi: " + rowsDeletedHeader); // DETEKTIF 6
+            
+            System.out.println("Akan melakukan COMMIT..."); // DETEKTIF 7
+            conn.commit();
+            System.out.println("COMMIT berhasil."); // DETEKTIF 8
+            
+            JOptionPane.showMessageDialog(this, "Data '" + idYangAkanDihapus + "' berhasil dihapus.");
+            tampilData();
+
+        } catch (SQLException e) {
+            System.out.println("--- TERJADI ERROR PADA BLOK CATCH ---"); // DETEKTIF 9
+            System.out.println("Pesan Error: " + e.getMessage()); // Cetak pesan errornya
+            e.printStackTrace(); // Cetak detail error yang sangat lengkap
+
+            try {
+                conn.rollback();
+                System.out.println("Rollback berhasil dilakukan.");
+            } catch (SQLException ex) {
+                System.out.println("Rollback gagal: " + ex.getMessage());
+            }
+            JOptionPane.showMessageDialog(this, "Gagal menghapus data.\nLihat output konsol untuk detail error.", "Error Database", JOptionPane.ERROR_MESSAGE);
+        
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException ex) {
+                //abaikan
+            }
+        }
+    }   // TODO add your handling code here:
     }//GEN-LAST:event_hps_nActionPerformed
 
     private void simpan_nActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_simpan_nActionPerformed
@@ -701,51 +768,54 @@ Date selectedDate = (Date) tgl.getValue();
         String sql = "INSERT INTO transaksi (id_transaksi, tanggal, id_pelanggan, id_kasir, total_bayar) VALUES (?,?,?,?,?)";
         String zsql = "INSERT INTO transaksi_detail (id_transaksi, kode_barang, harga_beli, harga_jual, qty, total) VALUES (?,?,?,?,?,?)";
         try {
+            conn.setAutoCommit(false);
             PreparedStatement stat = conn.prepareStatement(sql);
             stat.setString(1, txtNota.getText());
             stat.setString(2, fd);
             stat.setString(3, id_p.getText());
             stat.setString(4, jLabel4.getText());
-            stat.setString(5, total_b.getText());
+            stat.setString(5, totalan.getText());
 
             stat.executeUpdate();
 
             int t = table_t.getRowCount();
             for (int i = 0; i < t; i++) {
-    String xkd = table_t.getValueAt(i, 0).toString();
-    String xhb = table_t.getValueAt(i, 2).toString();
-    String xhj = table_t.getValueAt(i, 3).toString();
-    String xqty = table_t.getValueAt(i, 4).toString();
-    String xsub = table_t.getValueAt(i, 5).toString();
+                String xkd = table_t.getValueAt(i, 1).toString(); // <-- PERUBAHAN DI SINI
+                String xhb = table_t.getValueAt(i, 2).toString();
+                String xhj = table_t.getValueAt(i, 3).toString();
+                String xqty = table_t.getValueAt(i, 4).toString();
+                String xsub = table_t.getValueAt(i, 5).toString();
 
-    // Cek apakah kode_barang valid
-    PreparedStatement cekKode = conn.prepareStatement("SELECT * FROM data_barang WHERE kode_barang = ?");
-    cekKode.setString(1, xkd);
-    ResultSet rs = cekKode.executeQuery();
-    if (!rs.next()) {
-        JOptionPane.showMessageDialog(null, "Kode Barang " + xkd + " tidak ditemukan di data_barang!");
-        continue;
-    }
-
-    PreparedStatement stat2 = conn.prepareStatement(zsql);
-    stat2.setString(1, txtNota.getText());
-    stat2.setString(2, xkd);
-    stat2.setString(3, xhb);
-    stat2.setString(4, xhj);
-    stat2.setString(5, xqty);
-    stat2.setString(6, xsub);
-
-    stat2.executeUpdate();
-}
-
+                PreparedStatement stat2 = conn.prepareStatement(zsql);
+                stat2.setString(1, txtNota.getText());
+                stat2.setString(2, xkd);
+                stat2.setString(3, xhb);
+                stat2.setString(4, xhj);
+                stat2.setString(5, xqty);
+                stat2.setString(6, xsub);
+                stat2.executeUpdate();
+            }
+            conn.commit();
             JOptionPane.showMessageDialog(null, "Data berhasil disimpan");
            
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "Data gagal disimpan" + e);
+            try {
+                conn.rollback();
+            } catch (SQLException ex) {
+                 JOptionPane.showMessageDialog(null, "Gagal rollback: " + ex.getMessage());
+            }
+            JOptionPane.showMessageDialog(null, "Data gagal disimpan: " + e.getMessage());
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(null, "Gagal set auto commit: " + ex.getMessage());
+            }
         }
         kosong();
-        aktif();
-        autonumber();        // TODO add your handling code here:
+        awal();
+        autonumber();        
+           // TODO add your handling code here:
     }//GEN-LAST:event_simpan_nActionPerformed
 
     private void batal_nActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_batal_nActionPerformed
@@ -776,6 +846,49 @@ try {
     private void keluar_nActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_keluar_nActionPerformed
 this.dispose();        
     }//GEN-LAST:event_keluar_nActionPerformed
+
+    private void cetakActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cetakActionPerformed
+// 1. Dapatkan baris mana yang sedang dipilih oleh pengguna di tabel
+    int selectedRow = table_t.getSelectedRow();
+
+    // 2. Cek apakah ada baris yang dipilih
+    // Jika tidak ada (getSelectedRow() akan mengembalikan -1), tampilkan pesan peringatan
+    if (selectedRow == -1) {
+        JOptionPane.showMessageDialog(this, "Silakan pilih salah satu data transaksi di tabel terlebih dahulu.", "Peringatan", JOptionPane.WARNING_MESSAGE);
+        return; // Hentikan proses
+    }
+
+    try {
+        // 3. Ambil ID Transaksi dari kolom pertama (indeks 0) di baris yang dipilih
+        String idNota = table_t.getValueAt(selectedRow, 0).toString();
+
+        // 4. Lokasi file .jasper Anda (pastikan nama file sudah benar)
+        String reportPath = "src/report/report1.jasper"; 
+
+        // 5. Siapkan parameter untuk dikirim ke laporan
+        HashMap<String, Object> parameters = new HashMap<>();
+        parameters.put("id_nota_parameter", idNota);
+
+        // 6. Dapatkan koneksi ke database
+        Connection conn = new koneksi().connect();
+        
+        // 7. Isi laporan dengan data dan parameter
+        JasperPrint jp = JasperFillManager.fillReport(reportPath, parameters, conn);
+        
+        // 8. Cek apakah laporan berisi data
+        if (jp.getPages().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Data untuk Nota dengan ID '" + idNota + "' tidak ditemukan.", "Data Tidak Ditemukan", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // 9. Tampilkan laporan di jendela viewer
+        JasperViewer.viewReport(jp, false);
+
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(this, "Terjadi error saat mencetak laporan.\nError: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        e.printStackTrace();
+    }
+    }//GEN-LAST:event_cetakActionPerformed
 
     /**
      * @param args the command line arguments
@@ -817,6 +930,7 @@ this.dispose();
     private javax.swing.JButton batal_n;
     private javax.swing.JButton cari_b;
     private javax.swing.JButton cari_p;
+    private javax.swing.JButton cetak;
     private javax.swing.JTextField harga_b;
     private javax.swing.JTextField harga_j;
     private javax.swing.JButton hps_n;
